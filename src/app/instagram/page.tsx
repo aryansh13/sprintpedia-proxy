@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 
 // Tipe data tetap sama
-type AnyRecord = Record<string, any>;
+type AnyRecord = Record<string, unknown>;
 
 type NormalizedProfile = {
     name: string | null;
@@ -25,10 +25,11 @@ function toNumber(value: unknown): number | null {
 }
 
 function pick<T>(obj: AnyRecord | null | undefined, path: string[]): T | undefined {
-    let cur: any = obj;
+    let cur: unknown = obj as unknown;
     for (const key of path) {
         if (cur == null) return undefined;
-        cur = cur[key];
+        if (typeof cur !== 'object' || Array.isArray(cur)) return undefined;
+        cur = (cur as Record<string, unknown>)[key];
     }
     return cur as T | undefined;
 }
@@ -198,7 +199,9 @@ export default function InstagramPage() {
 
     const normalized = useMemo<NormalizedProfile | null>(() => {
         if (!raw) return null;
-        const upstream = (raw as AnyRecord).data ?? raw;
+        const upstream = (typeof raw === 'object' && raw !== null && 'data' in (raw as Record<string, unknown>))
+            ? (raw as Record<string, unknown>)['data']
+            : raw;
         if (upstream && typeof upstream === 'object') {
             return normalizeUpstreamProfile(upstream as AnyRecord);
         }
@@ -225,8 +228,9 @@ export default function InstagramPage() {
             } else {
                 setRaw(json);
             }
-        } catch (e: any) {
-            setError(e?.message || 'Terjadi kesalahan jaringan');
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Terjadi kesalahan jaringan';
+            setError(message);
         } finally {
             setLoading(false);
         }

@@ -58,11 +58,19 @@ export async function POST(req: NextRequest) {
 		);
 
 		const text = await toolsResp.text();
-		let data: any;
-		try { data = JSON.parse(text); } catch {}
-		const root = data?.data ?? data;
-		const msg = String(root?.detail ?? root?.message ?? '').toLowerCase();
-		const isEmptyObj = !!root && typeof root === 'object' && !Array.isArray(root) && Object.keys(root).length === 0;
+		let data: unknown;
+		try { data = JSON.parse(text) as unknown; } catch {}
+		const root: unknown = (typeof data === 'object' && data !== null && 'data' in (data as Record<string, unknown>))
+			? (data as Record<string, unknown>)['data']
+			: data;
+		const msg = String(
+			(typeof root === 'object' && root !== null && 'detail' in (root as Record<string, unknown>)
+				? (root as Record<string, unknown>)['detail']
+				: typeof root === 'object' && root !== null && 'message' in (root as Record<string, unknown>)
+					? (root as Record<string, unknown>)['message']
+					: '')
+		).toLowerCase();
+		const isEmptyObj = !!root && typeof root === 'object' && !Array.isArray(root) && Object.keys(root as Record<string, unknown>).length === 0;
 		const upstream404 = toolsResp.status === 404;
 
 		if (upstream404 || !root || isEmptyObj || msg.includes('not found') || msg.includes('tidak ditemukan')) {
@@ -76,8 +84,9 @@ export async function POST(req: NextRequest) {
 			// checked_at: new Date().toISOString(),
 			// debug: [{ step: 'tools-status', status: toolsResp.status }],
 		});
-	} catch (e: any) {
-		return NextResponse.json({ ok: false, error: e?.message || 'Terjadi kesalahan' }, { status: 500 });
+	} catch (e: unknown) {
+		const message = e instanceof Error ? e.message : 'Terjadi kesalahan';
+		return NextResponse.json({ ok: false, error: message }, { status: 500 });
 	}
 }
 
